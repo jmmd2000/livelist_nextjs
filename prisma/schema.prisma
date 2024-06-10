@@ -1,20 +1,89 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-generator client {
-    provider = "prisma-client-js"
-}
-
 datasource db {
-    provider = "mysql"
-    url      = env("DATABASE_URL")
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
-model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+generator client {
+  provider = "prisma-client-js"
+}
 
-    @@index([name])
+model User {
+  id               Int           @id @default(autoincrement())
+  google_id        String        @unique
+  first_name       String?
+  last_name        String?
+  friendcode       String        @unique
+  avatar_url       String
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+  households       UserList[]
+  created_lists    List[]        @relation("CreatedByUser")
+  created_items    Item[]        @relation("CreatedByUser")
+  sentRequests     ListRequest[] @relation("requestFrom")
+  receivedRequests ListRequest[] @relation("requestTo")
+}
+
+model List {
+  id                         Int           @id @default(autoincrement())
+  name                       String        @unique
+  created_by                 User          @relation("CreatedByUser", fields: [created_by_google_id], references: [google_id])
+  created_by_google_id       String
+  members                    UserList[]
+  requests                   ListRequest[]
+  items                      Item[]
+  created_at                 DateTime      @default(now())
+  updated_at                 DateTime      @updatedAt
+
+  @@index([created_by_google_id])
+}
+
+// Many-to-many relation between User and List
+model UserList {
+  user_google_id             String
+  list_id                    Int
+  user                       User   @relation(fields: [user_google_id], references: [google_id])
+  list                       List   @relation(fields: [list_id], references: [id])
+
+  @@id([user_google_id, list_id])
+  @@index([list_id])
+  @@index([user_google_id])
+}
+
+model ListRequest {
+  id                         Int      @id @default(autoincrement())
+  from_user_google_id        String
+  to_user_google_id          String
+  list_id                    Int
+  from_user                  User     @relation("requestFrom", fields: [from_user_google_id], references: [google_id])
+  to_user                    User     @relation("requestTo", fields: [to_user_google_id], references: [google_id])
+  list                       List     @relation(fields: [list_id], references: [id])
+  status                     String   @default("pending") // can be 'pending', 'accepted', 'rejected'
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  @@unique([from_user_google_id, to_user_google_id, list_id])
+  @@index([list_id])
+  @@index([to_user_google_id])
+}
+
+model Item {
+  id                         Int      @id @default(autoincrement())
+  name                       String
+  best_before                DateTime?
+  price_history              String? // JSON stringified array of prices
+  list_id                    Int
+  list                       List     @relation(fields: [list_id], references: [id])
+  created_by_google_id       String
+  created_by                 User     @relation("CreatedByUser", fields: [created_by_google_id], references: [google_id])
+  generic                    Boolean  @default(true)
+  priority                   String   @default("normal") // can be 'low', 'normal', 'high'
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  @@index([list_id])
+  @@index([created_by_google_id])
 }
